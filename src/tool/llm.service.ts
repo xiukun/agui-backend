@@ -10,7 +10,7 @@ export class LLMService {
   getModel() {
     return new ChatOpenAI({
       model: this.configService.get('MODEL_NAME'),
-      temperature: 0.2,
+      temperature: 0.3,
       apiKey: this.configService.get('OPENAI_API_KEY'),
       configuration: {
         baseURL: this.configService.get('OPENAI_BASE_URL'),
