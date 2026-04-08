@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailerService } from '@nestjs-modules/mailer';
-import { tool } from '@langchain/core/tools';
+import { StructuredToolInterface, tool } from '@langchain/core/tools';
 import { z } from 'zod';
 
 @Injectable()
 export class SendMailToolService {
-  readonly tool;
+  readonly tool: StructuredToolInterface;
 
   @Inject(MailerService)
   private readonly mailerService: MailerService;
@@ -55,5 +55,3 @@ export class SendMailToolService {
     );
   }
 }
-
-

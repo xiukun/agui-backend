@@ -10,6 +10,7 @@ import {
 import { Runnable } from '@langchain/core/runnables';
 import {
     CHAT_MODEL,
+    MCP_TOOL,
     SEND_MAIL_TOOL,
     TIME_NOW_TOOL,
     WEB_SEARCH_TOOL,
@@ -26,12 +27,14 @@ export class JobAgentService {
         @Inject(SEND_MAIL_TOOL) private readonly sendMailTool: any,
         @Inject(WEB_SEARCH_TOOL) private readonly webSearchTool: any,
         @Inject(TIME_NOW_TOOL) private readonly timeNowTool: any,
+        @Inject(MCP_TOOL) private readonly mcpTool: any,
         private readonly memoryService: MemoryService,
     ) {
         this.modelWithTools = model.bindTools([
             this.sendMailTool,
             this.webSearchTool,
             this.timeNowTool,
+            ...this.mcpTool,
         ]);
     }
 
@@ -139,8 +142,20 @@ export class JobAgentService {
                             content: JSON.stringify(result),
                         }),
                     );
-                }  else {
-                    this.logger.warn(`未知工具调用: ${toolName}`);
+                } else if (toolName.startsWith('mcp_') || toolName.startsWith('filesystem') || toolName.startsWith('amap')) {
+                    const tool = this.mcpTool.find((t: any) => t.name === toolName);
+                    const result = tool
+                        ? await tool.invoke(toolCall.args)
+                        : `Tool ${toolName} not found`;
+                    messages.push(
+                        new ToolMessage({
+                            tool_call_id: toolCallId,
+                            name: toolName,
+                            content: typeof result === 'string' ? result : JSON.stringify(result),
+                        }),
+                    );
+                } else {
+                    this.logger.warn(`未知工具调用: ${toolName}`);
                 }
             }
             }

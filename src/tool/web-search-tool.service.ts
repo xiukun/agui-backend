@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Tool, tool } from '@langchain/core/tools';
+import { StructuredToolInterface, tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { TavilySearch } from '@langchain/tavily';
 
 @Injectable()
 export class WebSearchToolService {
-  readonly tool;
+  readonly tool: StructuredToolInterface;
   constructor(
     @Inject(ConfigService) private readonly configService: ConfigService,
   ) {
