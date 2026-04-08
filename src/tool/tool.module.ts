@@ -28,6 +28,6 @@ import { SendMailToolService } from './send-mail-tool.service';
       inject: [SendMailToolService],
     },
   ],
-  exports: [CHAT_MODEL, WEB_SEARCH_TOOL],
+  exports: [CHAT_MODEL, WEB_SEARCH_TOOL, SEND_MAIL_TOOL],
 })
 export class ToolModule {}
