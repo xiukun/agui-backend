@@ -1,5 +1,6 @@
 const CHAT_MODEL = Symbol('CHAT_MODEL');
 const WEB_SEARCH_TOOL = Symbol('WEB_SEARCH_TOOL');
+export const SEND_MAIL_TOOL = Symbol('SEND_MAIL_TOOL');
 const ASR_CLIENT = Symbol('ASR_CLIENT');
 const REDIS_CLIENT = Symbol('REDIS_CLIENT');
 const MILVUS_CLIENT = Symbol('MILVUS_CLIENT');
