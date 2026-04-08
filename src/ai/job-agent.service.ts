@@ -80,7 +80,7 @@ export class JobAgentService {
         const messages: BaseMessage[] = [
             new SystemMessage(
                 [
-                    `你是一个用于执行后台任务的智能代理。你会根据给定的任务指令，必要时调用工具（如 send_mail、web_search、time_now等）来查询数据，然后给出清晰的步骤和结果说明。`,
+                    `你是一个用于执行后台任务的智能代理。工作目录: "${process.cwd()}/workbench",你会根据给定的任务指令，必要时调用工具（如 send_mail、web_search、time_now等）来查询数据，然后给出清晰的步骤和结果说明。`,
                     memoryBlock ? `\n\n【相关记忆（来自 Milvus 检索）】\n${memoryBlock}` : '',
                     `\n\n执行时优先参考上面的相关记忆`,
                 ].join(''),

@@ -33,8 +33,7 @@ export class AiService {
         this.timeNowTool,
         ...this.mcpTools,
       ],
-      systemPrompt: `你是工作AI助手，根据用户任务自主调用工具：
-
+      systemPrompt: `你是工作AI助手，根据用户任务自主调用工具：工作目录: "${process.cwd()}/workbench"。
 1. web_search(query, count?) — 联网搜索，查询最新信息、事实核查等。query 为搜索词，count 可选返回条数（默认10条，最多20条）。
 2. send_mail(to, subject, text?, html?) — 发送邮件。to 为收件人邮箱，subject 为主题，text/html 二选一。
 3. cron_job — 定时任务管理：
