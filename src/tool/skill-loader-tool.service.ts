@@ -3,6 +3,7 @@ import { StructuredToolInterface, tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { SkillProviderRegistry } from './skill-provider.registry';
 
 /**
  * LarkSkillLoaderToolService
@@ -40,7 +41,7 @@ export class LarkSkillLoaderToolService {
   /** LangChain StructuredTool 实例，对外暴露给 Agent 调用 */
   readonly tool: StructuredToolInterface;
 
-  constructor() {
+  constructor(private readonly skillProviderRegistry: SkillProviderRegistry) {
     // --- 工具入参 Schema 定义 ---
     const loadArgsSchema = z.object({
       skillName: z
@@ -86,35 +87,39 @@ export class LarkSkillLoaderToolService {
 
         try {
           const sections: string[] = [];
+          const docDescriptors = this.skillProviderRegistry.resolveSkillDocs(
+            this.skillsRoot,
+            {
+              skillName: normalized,
+              includeShared,
+            },
+          );
 
-          // 1. 加载主 SKILL.md（必选）
-          const skillDir = this.resolveInsideSkillsRoot(normalized);
-          const skillDocPath = path.join(skillDir, 'SKILL.md');
-          const skillDoc = await fs.readFile(skillDocPath, 'utf8');
-          sections.push(this.formatSection(normalized, 'SKILL.md', skillDoc));
-
-          // 2. 如果是 lark-* skill 且 includeShared=true，额外加载共享规则
-          if (includeShared && normalized.startsWith('lark-')) {
-            const sharedPath = path.join(
-              this.skillsRoot,
-              'lark-shared',
-              'SKILL.md',
+          for (const descriptor of docDescriptors) {
+            const safePath = this.resolveInsideSkillsRoot(
+              path.relative(this.skillsRoot, descriptor.filePath),
             );
-            const sharedDoc = await fs.readFile(sharedPath, 'utf8');
+            const content = await fs.readFile(safePath, 'utf8');
             sections.push(
-              this.formatSection('lark-shared', 'SKILL.md', sharedDoc),
+              this.formatSection(
+                descriptor.skillName,
+                descriptor.fileLabel,
+                content,
+              ),
             );
           }
 
           // 3. 加载 references/ 目录下的参考文档（最多 3 个）
           for (const fileName of referenceFiles ?? []) {
-            // path.basename 防止路径穿越，例如 fileName = "../../../etc/passwd"
+            const primarySkill =
+              docDescriptors[0]?.skillName.trim() || normalized;
+            const skillDir = this.resolveInsideSkillsRoot(primarySkill);
             const safeName = path.basename(fileName);
             const referencePath = path.join(skillDir, 'references', safeName);
             const referenceDoc = await fs.readFile(referencePath, 'utf8');
             sections.push(
               this.formatSection(
-                normalized,
+                primarySkill,
                 `references/${safeName}`,
                 referenceDoc,
               ),
@@ -133,7 +138,7 @@ export class LarkSkillLoaderToolService {
       {
         name: 'load_local_skill',
         description:
-          '按需读取当前仓库 skills/ 目录下的本地 skill 说明与参考文档。优先用于在执行 amap 或 lark 命令前理解规则、参数和安全约束。',
+          '按需读取当前仓库 skills/ 目录下的本地 skill 说明与参考文档。优先用于在执行 amap 或 飞书 lark 命令前理解规则、参数和安全约束。',
         schema: loadArgsSchema,
       },
     );

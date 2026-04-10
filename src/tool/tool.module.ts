@@ -17,8 +17,11 @@ import { SendMailToolService } from './send-mail-tool.service';
 import { TimeNowToolService } from './time-now-tool.service';
 import { CronJobToolService } from './cron-job-tool.service';
 import { McpToolService } from './mcp-tool.service';
-import { LarkCliToolService } from './lark-cli-tool.service';
-import { LarkSkillLoaderToolService } from './lark-skill-loader-tool.service';
+import { CliToolService } from './skill-cli-tool.service';
+import { LarkSkillLoaderToolService } from './skill-loader-tool.service';
+import { SkillProviderRegistry } from './skill-provider.registry';
+import { AmapSkillProvider } from './providers/amap-skill.provider';
+import { LarkSkillProvider } from './providers/lark-skill.provider';
 
 @Module({
   imports: [ConfigModule, forwardRef(() => JobModule)],
@@ -29,8 +32,11 @@ import { LarkSkillLoaderToolService } from './lark-skill-loader-tool.service';
     TimeNowToolService,
     CronJobToolService,
     McpToolService,
-    LarkCliToolService,
+    CliToolService,
     LarkSkillLoaderToolService,
+    SkillProviderRegistry,
+    AmapSkillProvider,
+    LarkSkillProvider,
     {
       provide: CHAT_MODEL,
       useFactory: (llmService: LLMService) => llmService.getModel(),
@@ -69,8 +75,8 @@ import { LarkSkillLoaderToolService } from './lark-skill-loader-tool.service';
     },
     {
       provide: CONTROLLED_CLI_TOOL,
-      useFactory: (svc: LarkCliToolService) => svc.tool,
-      inject: [LarkCliToolService],
+      useFactory: (svc: CliToolService) => svc.tool,
+      inject: [CliToolService],
     },
   ],
   exports: [
