@@ -20,14 +20,15 @@ services:
 
   # Redis - 高性能缓存
   redis:
-    image: redis:7.2-alpine
+    image: redis/redis-stack-server:latest
     container_name: tts-redis
     restart: always
     ports:
       - "6379:6379"
     volumes:
       - ./cdb/redis/data:/data
-    command: redis-server --appendonly yes
+    environment:
+      - REDIS_ARGS=--appendonly yes
 
   # ==================== Milvus 向量数据库 ====================
   # etcd - Milvus 元数据存储

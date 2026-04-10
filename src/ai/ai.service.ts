@@ -1,8 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ChatOpenAI } from '@langchain/openai';
+import { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { AIMessageChunk, createAgent, Tool } from 'langchain';
 import { UIMessage } from 'ai';
 import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
+import { HitlStateService } from './hitl-state.service';
 import {
   CHAT_MODEL,
   CONTROLLED_CLI_TOOL,
@@ -12,11 +14,14 @@ import {
   SEND_MAIL_TOOL,
   TIME_NOW_TOOL,
   WEB_SEARCH_TOOL,
+  ASK_USER_CHOICE_TOOL,
+  LANGGRAPH_CHECKPOINTER,
 } from 'src/constant';
 
 @Injectable()
 export class AiService {
   private readonly agent: ReturnType<typeof createAgent>;
+  private readonly logger = new Logger(AiService.name);
 
   constructor(
     @Inject(CHAT_MODEL) private readonly chatModel: ChatOpenAI,
@@ -27,6 +32,10 @@ export class AiService {
     @Inject(MCP_TOOL) private readonly mcpTools: Tool[],
     @Inject(LOCAL_SKILL_TOOL) private readonly localSkillTool: Tool,
     @Inject(CONTROLLED_CLI_TOOL) private readonly controlledCliTool: Tool,
+    @Inject(ASK_USER_CHOICE_TOOL) private readonly askUserChoiceTool: Tool,
+    @Inject(LANGGRAPH_CHECKPOINTER)
+    private readonly checkpointer: BaseCheckpointSaver,
+    private readonly hitlStateService: HitlStateService,
   ) {
     this.agent = createAgent({
       model: this.chatModel,
@@ -37,8 +46,10 @@ export class AiService {
         this.timeNowTool,
         this.localSkillTool,
         this.controlledCliTool,
+        this.askUserChoiceTool,
         ...this.mcpTools,
       ],
+      checkpointer: this.checkpointer,
       systemPrompt: `你是工作AI助手，根据用户任务自主调用工具：工作目录: "${process.cwd()}/workbench"。
 1. web_search(query, count?) — 联网搜索，查询最新信息、事实核查等。query 为搜索词，count 可选返回条数（默认10条，最多20条）。
 2. send_mail(to, subject, text?, html?) — 发送邮件。to 为收件人邮箱，subject 为主题，text/html 二选一。
@@ -52,20 +63,59 @@ export class AiService {
    - lark：支持 calendar/contact/doc/im/base 等命名空间动作，例如 "calendar.agenda"、"doc.search"、"base.table-list"
    - amap：支持 "route"、"searchPOI"、"mapState"
    写操作必须显式 confirmWrite=true；否则只会返回命令预览。
-7. MCP工具（如 filesystem_* ）— 通过 MCP 协议接入，包括：
+7. ask_user_choice(question, options, allowMultiple?) — 当需要用户在多个选项中进行单选或多选以决定后续步骤时使用。options 为对象数组 [{label, value}]。
+8. MCP工具（如 filesystem_* ）— 通过 MCP 协议接入，包括：
    - filesystem 系列：读取/写入/列出指定目录下的文件
 
-调用规则：处理本地 skills/ 中定义的任务时，优先先调用 load_local_skill 获取规则，再用 exec_controlled_cli 执行 provider 注册的动作；需要最新信息时用 web_search；需要发送邮件时用 send_mail；需要定时执行任务时用 cron_job（add）；需要知道当前时间时用 time_now；需要读写文件使用filesystem工具。`,
+调用规则：处理本地 skills/ 中定义的任务时，优先先调用 load_local_skill 获取规则，再用 exec_controlled_cli 执行 provider 注册的动作；需要最新信息时用 web_search；需要发送邮件时用 send_mail；需要定时执行任务时用 cron_job（add）；需要知道当前时间时用 time_now；需要读写文件使用filesystem工具；当存在歧义或需要用户决策时，使用 ask_user_choice 询问用户。`,
     });
   }
 
-  async stream(message: UIMessage[]) {
+  private extractAskChoiceResult(
+    messages: UIMessage[],
+  ): string | string[] | undefined {
+    const lastMessage = messages.at(-1);
+    if (!lastMessage) return undefined;
+    for (const part of lastMessage.parts) {
+      const partRecord = part as Record<string, unknown>;
+      const type =
+        typeof partRecord.type === 'string' ? partRecord.type : undefined;
+      const toolName = type?.startsWith('tool-') ? type.slice(5) : undefined;
+      if (toolName !== 'ask_user_choice') continue;
+      if (partRecord.state !== 'output-available') continue;
+      const output = partRecord.output as Record<string, unknown> | undefined;
+      const choice = output?.choice;
+      if (typeof choice === 'string') return choice;
+      if (
+        Array.isArray(choice) &&
+        choice.every((item) => typeof item === 'string')
+      ) {
+        return choice as string[];
+      }
+    }
+    return undefined;
+  }
+
+  async stream(message: UIMessage[], threadId: string) {
+    const choice = this.extractAskChoiceResult(message);
+    if (choice !== undefined) {
+      const result = await this.hitlStateService.resolveWaiting(threadId, choice);
+      if (result === 'not_found') {
+        this.logger.warn(
+          `ask_user_choice output received but no waiting state found: ${threadId}`,
+        );
+      }
+    }
+
     const lcMessages = await toBaseMessages(message);
     const lgStream = await this.agent.stream(
       { messages: lcMessages },
       {
         streamMode: ['messages', 'values'],
         recursionLimit: 25,
+        configurable: {
+          thread_id: threadId,
+        },
       },
     );
     return toUIMessageStream(lgStream as AsyncIterable<AIMessageChunk>);

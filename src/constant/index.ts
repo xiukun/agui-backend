@@ -6,9 +6,11 @@ const TIME_NOW_TOOL = Symbol('TIME_NOW_TOOL');
 const MCP_TOOL = Symbol('MCP_TOOL');
 const LOCAL_SKILL_TOOL = Symbol('LOCAL_SKILL_TOOL');
 const CONTROLLED_CLI_TOOL = Symbol('CONTROLLED_CLI_TOOL');
-const ASR_CLIENT = Symbol('ASR_CLIENT');
-const REDIS_CLIENT = Symbol('REDIS_CLIENT');
-const MILVUS_CLIENT = Symbol('MILVUS_CLIENT');
+const ASK_USER_CHOICE_TOOL = Symbol('ASK_USER_CHOICE_TOOL'); // 用于人机协同 (HITL) 交互的工具
+const LANGGRAPH_CHECKPOINTER = Symbol('LANGGRAPH_CHECKPOINTER'); // LangGraph 检查点服务
+const ASR_CLIENT = Symbol('ASR_CLIENT'); // 语音识别客户端
+const REDIS_CLIENT = Symbol('REDIS_CLIENT'); // Redis 客户端
+const MILVUS_CLIENT = Symbol('MILVUS_CLIENT'); // Milvus 客户端
 
 export {
   CHAT_MODEL,
@@ -19,6 +21,8 @@ export {
   MCP_TOOL,
   LOCAL_SKILL_TOOL,
   CONTROLLED_CLI_TOOL,
+  ASK_USER_CHOICE_TOOL,
+  LANGGRAPH_CHECKPOINTER,
   ASR_CLIENT,
   REDIS_CLIENT,
   MILVUS_CLIENT,
