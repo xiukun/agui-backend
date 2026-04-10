@@ -22,7 +22,7 @@ export class CliToolService {
       action: z
         .string()
         .describe(
-          'provider 下的动作名。示例：calendar.agenda、base.table-list、route、searchPOI。',
+          'provider 下的注册动作名（勿臆造）。飞书示例：base.base-get、base.table-get、base.record-list、config.show；高德：route、searchPOI。错误示例：lark.base.get、base.get、config.list（应分别为 base.base-get、config.show）。',
         ),
       args: z
         .record(

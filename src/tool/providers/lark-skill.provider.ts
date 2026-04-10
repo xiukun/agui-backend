@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { URL } from 'url';
 import path from 'path';
 import {
   ControlledCliActionSpec,
@@ -257,6 +258,12 @@ export class LarkSkillProvider implements SkillProvider {
           this.pushOption(command, '--idempotency-key', args.idempotencyKey);
           return command;
         },
+      },
+      // 配置：查看当前 lark-cli 应用配置（无 list 子命令，对应常见误名 config.list）
+      'config.show': {
+        bin: 'lark-cli',
+        requiresConfirmation: false,
+        buildArgs: () => ['config', 'show'],
       },
       // Base：读取与写入相关操作（封装成工厂方法）
       'base.base-get': this.makeBaseReadAction('+base-get', ['baseToken'], {
@@ -575,17 +582,22 @@ export class LarkSkillProvider implements SkillProvider {
   }
 
   /**
-   * 规范化 action：去除前缀 'lark.'，其余保持不变，便于字典查找。
+   * 规范化 action：去除前缀 'lark.'，并将常见误名映射到已注册的键。
    */
   private normalizeAction(action: string): string {
     const raw = action.trim();
     if (!raw) {
       return '';
     }
-    if (raw.startsWith('lark.')) {
-      return raw.slice(5);
-    }
-    return raw;
+    const withoutPrefix = raw.startsWith('lark.') ? raw.slice(5) : raw;
+    const aliases: Record<string, string> = {
+      // LLM 常把 base-get 写成 base.get，导致 resolve 失败
+      'base.get': 'base.base-get',
+      // lark-cli 仅有 config show，无 config list
+      'config.list': 'config.show',
+      'config.get': 'config.show',
+    };
+    return aliases[withoutPrefix] ?? withoutPrefix;
   }
 
   /**
@@ -630,6 +642,7 @@ export class LarkSkillProvider implements SkillProvider {
     argMap: Record<string, string>,
     args: ControlledCliArgs,
   ): string[] {
+    this.tryExtractBaseParams(args);
     this.requireArgs(shortcut, args, requiredArgs);
     const command = ['base', shortcut];
     for (const [argName, flag] of Object.entries(argMap)) {
@@ -647,6 +660,52 @@ export class LarkSkillProvider implements SkillProvider {
       }
     }
     return command;
+  }
+
+  /**
+   * 尝试从参数值中提取 Base 相关参数（baseToken, tableId, viewId）。
+   * 扫描 args 中任意字符串值：模型可能把链接放在 link、feishuUrl 等非标准键下。
+   */
+  private tryExtractBaseParams(args: ControlledCliArgs): void {
+    for (const key of Object.keys(args)) {
+      const val = args[key];
+      if (typeof val !== 'string' || !this.looksLikeFeishuBaseUrl(val)) {
+        continue;
+      }
+
+      try {
+        const url = new URL(val);
+        const pathParts = url.pathname.split('/');
+        const baseIndex = pathParts.indexOf('base');
+        if (baseIndex !== -1 && pathParts[baseIndex + 1]) {
+          const extractedToken = pathParts[baseIndex + 1];
+          if (!args.baseToken || args.baseToken === val) {
+            args.baseToken = extractedToken;
+          }
+        }
+
+        const tableId = url.searchParams.get('table');
+        if (tableId && (!args.tableId || args.tableId === val)) {
+          args.tableId = tableId;
+        }
+
+        const viewId = url.searchParams.get('view');
+        if (viewId && (!args.viewId || args.viewId === val)) {
+          args.viewId = viewId;
+        }
+
+        break;
+      } catch {
+        // 忽略解析失败的 URL
+      }
+    }
+  }
+
+  private looksLikeFeishuBaseUrl(s: string): boolean {
+    return (
+      (s.includes('feishu.cn') || s.includes('larksuite.com')) &&
+      s.includes('/base/')
+    );
   }
 
   /**
