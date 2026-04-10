@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import path from 'path';
 import {
   ControlledCliActionSpec,
@@ -16,6 +17,48 @@ import {
 @Injectable()
 export class LarkSkillProvider implements SkillProvider {
   readonly id = 'lark';
+  private readonly larkEnv: NodeJS.ProcessEnv;
+
+  constructor(private readonly configService: ConfigService) {
+    const appId = this.configService.get<string>('FEISHU_APP_ID') ?? '';
+    const appSecret = this.configService.get<string>('FEISHU_APP_SECRET') ?? '';
+    this.larkEnv = {
+      ...process.env,
+      FEISHU_APP_ID: appId,
+      FEISHU_APP_SECRET: appSecret,
+    };
+  }
+
+  /**
+   * 将 .env 中的飞书应用凭证注入子进程，供 lark-cli 使用（与 AmapSkillProvider 的密钥注入方式一致）。
+   */
+  getExecutionEnv(): NodeJS.ProcessEnv {
+    return this.larkEnv;
+  }
+
+  /**
+   * 执行前校验：未配置 FEISHU_APP_ID / FEISHU_APP_SECRET 时拒绝执行，避免静默失败。
+   */
+  async preflight(): Promise<{
+    ok: boolean;
+    notes: string[];
+    message?: string;
+  }> {
+    const appId = this.configService.get<string>('FEISHU_APP_ID') ?? '';
+    const appSecret = this.configService.get<string>('FEISHU_APP_SECRET') ?? '';
+    if (!appId.trim() || !appSecret.trim()) {
+      return {
+        ok: false,
+        notes: [],
+        message:
+          '缺少飞书应用凭证：请在 .env 中配置 FEISHU_APP_ID 与 FEISHU_APP_SECRET',
+      };
+    }
+    return {
+      ok: true,
+      notes: ['已注入 FEISHU_APP_ID / FEISHU_APP_SECRET 至 lark-cli 环境'],
+    };
+  }
 
   /**
    * 规范化 Skill 名称：将用户输入的别名映射到具体的技能目录名。
